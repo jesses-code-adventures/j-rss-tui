@@ -4,6 +4,7 @@ use crate::ui::screens::{FeedsOptions, HomeScreenOptions, Options, PostsOptions,
 use crate::ui::{primitives::StatefulList, screens::ProceduresOptions};
 use crossterm::event::{self, Event, KeyCode};
 use futures::executor::block_on;
+use open;
 use std::{
     io,
     time::{Duration, Instant},
@@ -28,6 +29,7 @@ pub struct App {
     pub previous_screen: SelectedScreen,
     pub items: StatefulList<String>,
     pub show_popup: bool,
+    pub should_open_link: bool,
 }
 
 impl App {
@@ -40,6 +42,7 @@ impl App {
             previous_screen: SelectedScreen::Home,
             items: SelectedScreen::Home.get_list_items(),
             show_popup: false,
+            should_open_link: false,
         }
     }
 
@@ -189,9 +192,7 @@ impl App {
                                     ),
                                 };
                             }
-                            SelectedScreen::BrowsePosts => {
-                                todo!("view the content of a selected post")
-                            }
+                            SelectedScreen::BrowsePosts => self.should_open_link = true,
                         }
                     }
                     _ => return resp,
@@ -296,7 +297,7 @@ impl App {
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(15), Constraint::Percentage(85)])
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(f.size());
 
         f.render_stateful_widget(items, chunks[0], &mut self.items.state);
@@ -308,6 +309,11 @@ impl App {
             let popup_area = self.centered_rect(60, 80, size);
             f.render_widget(Clear, popup_area); //this clears out the background
             f.render_widget(popup_block, popup_area);
+        }
+        if self.should_open_link {
+            let url = displayed_item.url;
+            open::that(url).unwrap();
+            self.should_open_link = false;
         }
     }
     /// helper function to create a centered rect using up certain percentage of the available rect `r`
