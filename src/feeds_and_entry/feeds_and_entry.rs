@@ -6,17 +6,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
-    title: String,
-    authors: String,
-    blurb: String,
-    url: String,
-    content: Option<String>,
+    pub title: String,
+    pub authors: String,
+    pub blurb: String,
+    pub url: String,
+    pub content: Option<String>,
     // updated_at: Option<DateTime<Utc>>,
-    updated_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 
+#[allow(unused)]
 impl Entry {
-    fn new(title: &str, authors: &str, blurb: &str, url: &str, content: Option<String>, updated_at: Option<DateTime<Utc>>) -> Entry {
+    pub fn new(title: &str, authors: &str, blurb: &str, url: &str, content: Option<String>, updated_at: Option<DateTime<Utc>>) -> Entry {
         let updated_at_str: String;
         match updated_at {
             Some(x) => { updated_at_str = x.to_string() },
@@ -31,11 +32,28 @@ impl Entry {
             updated_at: Some(updated_at_str),
         }
     }
+    pub fn get_feed_content(&self) -> String {
+        match &self.content {
+            Some(x) => {return x.to_string()},
+            None =>  {
+                if self.blurb.len() > 0 {
+                    return self.blurb.to_string()
+                } else {
+                    return self.title.to_string()
+                }
+            }
+        }
+    }
 }
 
 impl fmt::Display for Entry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Title: {:?}\n\nAuthor(s): {:?}\n\nUpdated At: {:?}\n\nBlurb: {:?}", &self.title, &self.authors, &self.updated_at, &self.blurb)
+        write!(
+            f,
+            "{:?} - {:?}",
+            &self.updated_at.clone().unwrap().trim_matches('"'),
+            &self.title.trim_matches('"'),
+            )
     }
 }
 
@@ -46,9 +64,10 @@ pub struct BlogFeed {
     pub entries: Option<Vec<Entry>>,
 }
 
+#[allow(unused)]
 impl BlogFeed {
     pub fn new(url: &str, name: &str) -> BlogFeed {
-        return BlogFeed {
+        BlogFeed {
             name: String::from(name),
             url: String::from(url),
             entries: None,
@@ -100,23 +119,23 @@ impl BlogFeed {
 
         }
         self.entries = Some(entries);
-        return &self.entries
+        &self.entries
     }
 
     pub fn format_feed_entries(&self) -> String {
         let mut resp = String::from("");
         let default_entries: Vec<Entry> = vec![];
         for entry in self.entries.as_ref().unwrap_or(&default_entries).iter() {
-            resp.push_str("[");
+            resp.push('[');
             let title = format!("{:?}", entry.title.clone());
             resp.push_str(&title[1..title.len()-1]);
-            resp.push_str("]");
-            resp.push_str("(");
+            resp.push(']');
+            resp.push('(');
             let url = format!("{:?}", entry.url.clone());
             resp.push_str(&url[1..url.len()-1]);
-            resp.push_str(")");
+            resp.push(')');
             if let Some(update_time) = &entry.updated_at {
-                resp.push_str("\n");
+                resp.push('\n');
                 let update_str = format!("{:?}", update_time.to_string());
                 resp.push_str(&update_str[1..update_str.len()-1]);
                 resp.push_str("\n\n");
@@ -127,7 +146,39 @@ impl BlogFeed {
             resp.push_str(&blurb[1..blurb.len()-1]);
             resp.push_str("\n\n");
         }
-        return resp
+        resp
+    }
+
+    pub fn get_feed_content(&self) -> Vec<String> {
+        let default_entries: Vec<Entry> = vec![];
+        let mut blurbs: Vec<String> = vec![];
+        self.entries.as_ref().unwrap_or(&default_entries).iter().map(|entry| {
+            println!("{:?}", entry);
+            match &entry.content {
+                Some(x) => blurbs.push(x.to_string()),
+                None => {
+                    if entry.blurb.len() > 0 {
+                        blurbs.push(entry.blurb.to_string())
+                    } else {
+                        blurbs.push(entry.title.to_string())
+                    }
+                }
+            }
+
+        });
+        blurbs
+        // for entry in self.entries.as_ref().unwrap_or(&default_entries).iter() {
+        //     match &entry.content {
+        //         Some(x) => blurbs.push(x.to_string()),
+        //         None => {
+        //             if entry.blurb.len() > 0 {
+        //                 blurbs.push(entry.blurb.to_string())
+        //             } else {
+        //                 blurbs.push(entry.title.to_string())
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 

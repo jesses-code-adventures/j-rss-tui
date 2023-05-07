@@ -1,19 +1,12 @@
-use tui::{
-    backend::{Backend, CrosstermBackend},
-    // layout::{Layout, Constraint, Direction, Alignment},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem, ListState},
-    Frame,
-    Terminal,
-};
+use tui::widgets::ListState;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StatefulList<T> {
     pub state: ListState,
     pub items: Vec<T>,
 }
 
+#[allow(unused)]
 impl<T> StatefulList<T> {
     pub fn with_items(items: Vec<T>) -> StatefulList<T> {
         StatefulList {
@@ -52,5 +45,9 @@ impl<T> StatefulList<T> {
 
     pub fn unselect(&mut self) {
         self.state.select(None);
+    }
+
+    pub fn get_item(&self, index: usize) -> &T {
+        return &self.items[index];
     }
 }

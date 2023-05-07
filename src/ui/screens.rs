@@ -1,15 +1,11 @@
-use tui::{backend::Backend, Terminal};
+use crate::ui::primitives::StatefulList;
 
-use crate::{
-    app::app::App, session_and_user::session_and_user::Session, ui::primitives::StatefulList,
-};
-
-use crossterm::event::{self, Event, KeyCode};
+#[derive(Clone)]
 pub enum SelectedScreen {
     Home,
     Posts,
     BrowsePosts,
-    EditFeeds,
+    Feeds,
     CreateSession,
     SelectSession,
     Procedures,
@@ -19,12 +15,10 @@ impl SelectedScreen {
     pub fn get_list_items(&self) -> StatefulList<String> {
         match self {
             SelectedScreen::Home => {
-                return StatefulList::with_items(HomeScreenOptions::as_vec_of_strings())
+                StatefulList::with_items(HomeScreenOptions::as_vec_of_strings())
             }
-            SelectedScreen::Posts => {
-                return StatefulList::with_items(PostsOptions::as_vec_of_strings())
-            }
-            SelectedScreen::EditFeeds => todo!(),
+            SelectedScreen::Posts => StatefulList::with_items(PostsOptions::as_vec_of_strings()),
+            SelectedScreen::Feeds => StatefulList::with_items(FeedsOptions::as_vec_of_strings()),
             SelectedScreen::CreateSession => todo!(),
             SelectedScreen::SelectSession => todo!(),
             SelectedScreen::Procedures => todo!(),
@@ -34,13 +28,13 @@ impl SelectedScreen {
 
     pub fn get_screen_name(&self) -> String {
         match self {
-            SelectedScreen::Home => return String::from("Home"),
-            SelectedScreen::Posts => return String::from("Posts"),
-            SelectedScreen::EditFeeds => return String::from("Edit Feeds"),
-            SelectedScreen::CreateSession => return String::from("Create Session"),
-            SelectedScreen::SelectSession => return String::from("Select Session"),
-            SelectedScreen::Procedures => return String::from("Procedures"),
-            SelectedScreen::BrowsePosts => return String::from("Browse Posts"),
+            SelectedScreen::Home => String::from("Home"),
+            SelectedScreen::Posts => String::from("Posts"),
+            SelectedScreen::Feeds => String::from("Edit Feeds"),
+            SelectedScreen::CreateSession => String::from("Create Session"),
+            SelectedScreen::SelectSession => String::from("Select Session"),
+            SelectedScreen::Procedures => String::from("Procedures"),
+            SelectedScreen::BrowsePosts => String::from("Browse Posts"),
         }
     }
 }
@@ -52,8 +46,8 @@ pub enum ProceduresOptions {
     Home,
 }
 
-impl ProceduresOptions {
-    pub fn as_string(&self) -> String {
+impl Options<ProceduresOptions> for ProceduresOptions {
+    fn as_string(&self) -> String {
         match self {
             ProceduresOptions::UpdatePosts => String::from("Update Posts"),
             ProceduresOptions::AddSource => String::from("Add Source"),
@@ -62,7 +56,7 @@ impl ProceduresOptions {
         }
     }
 
-    pub fn from_string(text: &str) -> ProceduresOptions {
+    fn from_string(text: &str) -> ProceduresOptions {
         match text {
             "Update Posts" => ProceduresOptions::UpdatePosts,
             "Add Source" => ProceduresOptions::AddSource,
@@ -71,12 +65,50 @@ impl ProceduresOptions {
             _ => panic!("This isn't an option!"),
         }
     }
-    pub fn as_vec_of_strings() -> Vec<String> {
+    fn as_vec_of_strings() -> Vec<String> {
         vec![
             ProceduresOptions::UpdatePosts.as_string(),
             ProceduresOptions::AddSource.as_string(),
             ProceduresOptions::DumpSessionData.as_string(),
             ProceduresOptions::Home.as_string(),
+        ]
+    }
+}
+
+pub enum FeedsOptions {
+    ViewFeeds,
+    AddFeed,
+    Home,
+}
+
+pub trait Options<T> {
+    fn as_string(&self) -> String;
+    fn from_string(text: &str) -> T;
+    fn as_vec_of_strings() -> Vec<String>;
+}
+
+impl Options<FeedsOptions> for FeedsOptions {
+    fn as_string(&self) -> String {
+        match self {
+            FeedsOptions::Home => String::from("Home"),
+            FeedsOptions::AddFeed => String::from("Add Feed"),
+            FeedsOptions::ViewFeeds => String::from("View Feeds"),
+        }
+    }
+
+    fn from_string(text: &str) -> FeedsOptions {
+        match text {
+            "Home" => FeedsOptions::Home,
+            "Add Feed" => FeedsOptions::AddFeed,
+            "View Feeds" => FeedsOptions::ViewFeeds,
+            _ => panic!("This isn't an option!"),
+        }
+    }
+    fn as_vec_of_strings() -> Vec<String> {
+        vec![
+            FeedsOptions::Home.as_string(),
+            FeedsOptions::AddFeed.as_string(),
+            FeedsOptions::ViewFeeds.as_string(),
         ]
     }
 }
@@ -89,8 +121,8 @@ pub enum PostsOptions {
     Home,
 }
 
-impl PostsOptions {
-    pub fn as_string(&self) -> String {
+impl Options<PostsOptions> for PostsOptions {
+    fn as_string(&self) -> String {
         match self {
             PostsOptions::Browse => String::from("Browse Posts"),
             PostsOptions::Search => String::from("Search Posts"),
@@ -100,7 +132,7 @@ impl PostsOptions {
         }
     }
 
-    pub fn from_string(text: &str) -> PostsOptions {
+    fn from_string(text: &str) -> PostsOptions {
         match text {
             "Browse Posts" => PostsOptions::Browse,
             "Search Posts" => PostsOptions::Search,
@@ -110,7 +142,7 @@ impl PostsOptions {
             _ => panic!("This isn't an option!"),
         }
     }
-    pub fn as_vec_of_strings() -> Vec<String> {
+    fn as_vec_of_strings() -> Vec<String> {
         vec![
             PostsOptions::Home.as_string(),
             PostsOptions::Search.as_string(),
@@ -129,8 +161,8 @@ pub enum HomeScreenOptions {
     Procedures,
 }
 
-impl HomeScreenOptions {
-    pub fn as_string(&self) -> String {
+impl Options<HomeScreenOptions> for HomeScreenOptions {
+    fn as_string(&self) -> String {
         match self {
             HomeScreenOptions::ViewPosts => String::from("View Posts"),
             HomeScreenOptions::CreateSession => String::from("Create New Session"),
@@ -140,7 +172,7 @@ impl HomeScreenOptions {
         }
     }
 
-    pub fn from_string(text: &str) -> HomeScreenOptions {
+    fn from_string(text: &str) -> HomeScreenOptions {
         match text {
             "View Posts" => HomeScreenOptions::ViewPosts,
             "Create New Session" => HomeScreenOptions::CreateSession,
@@ -151,7 +183,7 @@ impl HomeScreenOptions {
         }
     }
 
-    pub fn as_vec_of_strings() -> Vec<String> {
+    fn as_vec_of_strings() -> Vec<String> {
         vec![
             HomeScreenOptions::ViewPosts.as_string(),
             HomeScreenOptions::CreateSession.as_string(),

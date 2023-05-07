@@ -8,28 +8,30 @@ pub struct User {
     name: String,
 }
 
+#[allow(unused)]
 impl User {
     pub fn new(name: &str) -> User {
-        return User {
+        User {
             name: String::from(name),
-        };
+        }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Session {
     pub user: User,
     pub name: String,
     pub blog_feeds: Vec<BlogFeed>,
 }
 
+#[allow(unused)]
 impl Session {
     pub fn new(user: User, blog_feeds: Vec<BlogFeed>, name: &str) -> Session {
-        return Session {
+        Session {
             name: String::from(name),
             user,
             blog_feeds,
-        };
+        }
     }
 
     pub fn create_blog_feed(&mut self, name: &str, url: &str) {
@@ -59,7 +61,7 @@ impl Session {
     pub fn from_json(the_json: serde_json::Value) -> Session {
         let session: Session =
             serde_json::from_str(the_json.to_string().as_str()).expect("json was fucked");
-        return session;
+        session
     }
 
     pub fn test_json_translation(&self) {
@@ -69,13 +71,13 @@ impl Session {
         println!("Great success")
     }
 
-    // pub fn get_all_blog_entries(&self) -> Vec<Entry> {
-    //     let mut all_entries = vec![];
-    //     for feed in &self.blog_feeds {
-    //         all_entries.append(&mut feed.entries.as_mut().unwrap());
-    //     }
-    //     return all_entries;
-    // }
+    pub fn get_all_blog_entries(&self) -> Vec<Entry> {
+        let mut all_entries = vec![];
+        for feed in &self.blog_feeds {
+            all_entries.append(&mut feed.entries.clone().unwrap())
+        }
+        return all_entries;
+    }
 
     pub fn get_all_blog_entry_titles(&self) -> Vec<String> {
         let mut all_titles: Vec<String> = vec![];
@@ -85,10 +87,24 @@ impl Session {
                     all_titles.push(e.to_string());
                 }
             }
-
-            // all_entries.append(&mut feed.entries.unwrap());
         }
-        return all_titles;
+        all_titles
+    }
+
+    pub fn get_all_blog_blurbs(&self) -> Vec<String> {
+        let mut blurbs: Vec<String> = vec![];
+        for feed in &self.blog_feeds {
+            blurbs.extend(feed.get_feed_content());
+        }
+        blurbs
+    }
+
+    pub async fn fetch_all_blog_entries(&mut self) {
+        for mut feed in self.blog_feeds.iter() {
+            let rss = feed.get_rss_feed().await.unwrap();
+            feed.to_owned().populate_entries(&rss);
+        }
+        self.dump_to_json();
     }
 }
 

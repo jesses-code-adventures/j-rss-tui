@@ -1,5 +1,4 @@
 use anyhow::Result;
-use tokio;
 use std::{io, time::Duration};
 mod session_and_user;
 use crate::session_and_user::session_and_user::Session;
@@ -26,11 +25,8 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let session = Session::load_from_json();
-
     let mut app = App::new(Some(session));
-    let _res = app.run(&mut terminal, tick_rate)?;
-    // let _res = app.run(terminal, tick_rate)?;
-
+    app.run(&mut terminal, tick_rate)?;
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -38,6 +34,6 @@ async fn main() -> Result<()> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-
+    terminal.set_cursor(0, 0)?;
     Ok(())
 }
