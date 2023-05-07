@@ -1,17 +1,43 @@
-use reqwest;
 use anyhow::Result;
 use tokio;
-
-async fn get_rss_feed(url: &str) -> Result<String> {
-    let content = reqwest::get(url).await?.text().await?;
-    println!("{:?}", content);
-    Ok(content)
-}
+use std::{io, time::Duration};
+mod session_and_user;
+use crate::session_and_user::session_and_user::Session;
+mod feeds_and_entry;
+mod ui;
+mod app;
+use app::app::App;
+use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use tui::{
+    backend::CrosstermBackend,
+    Terminal,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let url = "https://rust-lang.github.io/async-book/01_getting_started/04_async_await_primer.html";
-    let res = get_rss_feed(&url).await?;
-    println!("{:?}", res);
+    let tick_rate = Duration::from_millis(50);
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen,EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    let session = Session::load_from_json();
+
+    let mut app = App::new(Some(session));
+    let _res = app.run(&mut terminal, tick_rate)?;
+    // let _res = app.run(terminal, tick_rate)?;
+
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
     Ok(())
 }
