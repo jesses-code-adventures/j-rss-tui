@@ -36,14 +36,14 @@ impl Session {
         let the_json = self.to_json();
 
         std::fs::write(
-            ".sessions.json",
+            ".session.json",
             serde_json::to_string_pretty(&the_json).unwrap(),
         )
         .unwrap();
     }
 
     pub fn load_from_json() -> Result<Session> {
-        let text = std::fs::read_to_string(".sessions.json")?;
+        let text = std::fs::read_to_string(".session.json")?;
         let the_json =serde_json::from_str::<Session>(&text)?;
         Ok(the_json)
     }
@@ -91,9 +91,9 @@ impl Session {
     }
 
     pub async fn fetch_all_blog_entries(&mut self) {
-        for mut feed in self.blog_feeds.iter() {
+        for feed in self.blog_feeds.iter_mut() {
             let rss = feed.get_rss_feed().await.unwrap();
-            feed.to_owned().populate_entries(&rss);
+            feed.populate_entries(&rss);
         }
         self.dump_to_json();
     }

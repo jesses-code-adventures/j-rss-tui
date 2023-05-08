@@ -1,3 +1,5 @@
 /target
 .session.json
 .sessions.json
+.DS_Store
+

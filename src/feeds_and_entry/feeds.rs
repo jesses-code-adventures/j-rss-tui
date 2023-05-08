@@ -29,7 +29,7 @@ impl BlogFeed {
         Ok(feed.unwrap())
     }
 
-    pub fn populate_entries(&mut self, feed: &feed_rs::model::Feed) -> &Option<Vec<Entry>> {
+    pub fn populate_entries(&mut self, feed: &feed_rs::model::Feed)  -> Option<Vec<Entry>> {
         let mut entries: Vec<Entry> = vec![];
         for entry in feed.entries.iter() {
             let markdown_title = &html2md::parse_html(entry.title.as_ref().unwrap().content.as_str());
@@ -67,7 +67,7 @@ impl BlogFeed {
 
         }
         self.entries = Some(entries);
-        &self.entries
+        self.entries.clone()
     }
 
     pub fn format_feed_entries(&self) -> String {
@@ -101,7 +101,6 @@ impl BlogFeed {
         let default_entries: Vec<Entry> = vec![];
         let mut blurbs: Vec<String> = vec![];
         self.entries.as_ref().unwrap_or(&default_entries).iter().map(|entry| {
-            println!("{:?}", entry);
             match &entry.content {
                 Some(x) => blurbs.push(x.to_string()),
                 None => {
