@@ -51,7 +51,7 @@ impl fmt::Display for Entry {
         write!(
             f,
             "{:?} - {:?}",
-            &self.updated_at.clone().unwrap().trim_matches('"'),
+            &self.updated_at.as_ref().unwrap().trim_matches('"'),
             &self.title.trim_matches('"'),
             )
     }
@@ -127,11 +127,11 @@ impl BlogFeed {
         let default_entries: Vec<Entry> = vec![];
         for entry in self.entries.as_ref().unwrap_or(&default_entries).iter() {
             resp.push('[');
-            let title = format!("{:?}", entry.title.clone());
+            let title = format!("{:?}", entry.title);
             resp.push_str(&title[1..title.len()-1]);
             resp.push(']');
             resp.push('(');
-            let url = format!("{:?}", entry.url.clone());
+            let url = format!("{:?}", entry.url);
             resp.push_str(&url[1..url.len()-1]);
             resp.push(')');
             if let Some(update_time) = &entry.updated_at {
@@ -142,7 +142,7 @@ impl BlogFeed {
             } else {
                 resp.push_str("\n\n");
             }
-            let blurb = format!("{:?}", entry.blurb.clone());
+            let blurb = format!("{:?}", entry.blurb);
             resp.push_str(&blurb[1..blurb.len()-1]);
             resp.push_str("\n\n");
         }
@@ -167,18 +167,6 @@ impl BlogFeed {
 
         });
         blurbs
-        // for entry in self.entries.as_ref().unwrap_or(&default_entries).iter() {
-        //     match &entry.content {
-        //         Some(x) => blurbs.push(x.to_string()),
-        //         None => {
-        //             if entry.blurb.len() > 0 {
-        //                 blurbs.push(entry.blurb.to_string())
-        //             } else {
-        //                 blurbs.push(entry.title.to_string())
-        //             }
-        //         }
-        //     }
-        // }
     }
 }
 

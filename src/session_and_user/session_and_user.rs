@@ -2,6 +2,7 @@ use crate::feeds_and_entry::feeds_and_entry::{BlogFeed, Entry};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fmt;
+use anyhow::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct User {
@@ -53,9 +54,10 @@ impl Session {
         .unwrap();
     }
 
-    pub fn load_from_json() -> Session {
-        let text = std::fs::read_to_string(".session.json").unwrap();
-        serde_json::from_str::<Session>(&text).unwrap()
+    pub fn load_from_json() -> Result<Session> {
+        let text = std::fs::read_to_string(".session.json")?;
+        let the_json =serde_json::from_str::<Session>(&text)?;
+        Ok(the_json)
     }
 
     pub fn from_json(the_json: serde_json::Value) -> Session {
@@ -66,15 +68,16 @@ impl Session {
 
     pub fn test_json_translation(&self) {
         let the_json = &self.to_json();
-        let transformed_back = Session::from_json(the_json.clone());
+        let transformed_back = Session::from_json(the_json.to_owned());
         assert!(self == &transformed_back);
         println!("Great success")
     }
 
     pub fn get_all_blog_entries(&self) -> Vec<Entry> {
-        let mut all_entries = vec![];
+        let mut all_entries: Vec<Entry> = vec![];
         for feed in &self.blog_feeds {
-            all_entries.append(&mut feed.entries.clone().unwrap())
+            let mut these_entries = feed.entries.clone().unwrap();
+            all_entries.append(&mut these_entries)
         }
         return all_entries;
     }
@@ -105,6 +108,21 @@ impl Session {
             feed.to_owned().populate_entries(&rss);
         }
         self.dump_to_json();
+    }
+
+    pub fn get_unique_authors(&self) -> Vec<String> {
+        let mut authors: Vec<String> = vec![];
+        for feed in &self.blog_feeds {
+            for entry in &feed.entries {
+                for e in entry {
+                    if authors.contains(&e.authors) {
+                        continue
+                    }
+                    authors.push(e.authors.clone())
+                }
+            }
+        }
+        authors
     }
 }
 

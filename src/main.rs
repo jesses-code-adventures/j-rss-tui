@@ -1,11 +1,6 @@
+// Their stuff
 use anyhow::Result;
 use std::{io, time::Duration};
-mod session_and_user;
-use crate::session_and_user::session_and_user::Session;
-mod feeds_and_entry;
-mod ui;
-mod app;
-use app::app::App;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
@@ -15,17 +10,25 @@ use tui::{
     backend::CrosstermBackend,
     Terminal,
 };
+// Our stuff
+mod session_and_user;
+mod feeds_and_entry;
+mod ui;
+mod app;
+use app::app::App;
+use crate::session_and_user::session_and_user::Session;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let tick_rate = Duration::from_millis(50);
+    let tick_rate = Duration::from_millis(30);
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen,EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let session = Session::load_from_json();
-    let mut app = App::new(Some(session));
+    let mut app = App::new(session.ok());
+    terminal.clear()?;
     app.run(&mut terminal, tick_rate)?;
     disable_raw_mode()?;
     execute!(

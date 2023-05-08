@@ -9,6 +9,7 @@ pub enum SelectedScreen {
     CreateSession,
     SelectSession,
     Procedures,
+    Authors,
 }
 
 impl SelectedScreen {
@@ -19,10 +20,14 @@ impl SelectedScreen {
             }
             SelectedScreen::Posts => StatefulList::with_items(PostsOptions::as_vec_of_strings()),
             SelectedScreen::Feeds => StatefulList::with_items(FeedsOptions::as_vec_of_strings()),
-            SelectedScreen::CreateSession => todo!(),
+            SelectedScreen::CreateSession => StatefulList::with_items(vec![
+                String::from("User Name: "),
+                String::from("Session Name: "),
+            ]),
             SelectedScreen::SelectSession => todo!(),
             SelectedScreen::Procedures => todo!(),
             SelectedScreen::BrowsePosts => StatefulList::with_items(vec![]),
+            SelectedScreen::Authors => StatefulList::with_items(vec![]),
         }
     }
 
@@ -35,6 +40,7 @@ impl SelectedScreen {
             SelectedScreen::SelectSession => String::from("Select Session"),
             SelectedScreen::Procedures => String::from("Procedures"),
             SelectedScreen::BrowsePosts => String::from("Browse Posts"),
+            SelectedScreen::Authors => String::from("Browse Authors"),
         }
     }
 }
@@ -127,7 +133,7 @@ impl Options<PostsOptions> for PostsOptions {
             PostsOptions::Browse => String::from("Browse Posts"),
             PostsOptions::Search => String::from("Search Posts"),
             PostsOptions::Categories => String::from("Browse Categories"),
-            PostsOptions::Authors => String::from("Change Session"),
+            PostsOptions::Authors => String::from("Browse Authors"),
             PostsOptions::Home => String::from("Home"),
         }
     }
@@ -137,7 +143,7 @@ impl Options<PostsOptions> for PostsOptions {
             "Browse Posts" => PostsOptions::Browse,
             "Search Posts" => PostsOptions::Search,
             "Browse Categories" => PostsOptions::Categories,
-            "Change Session" => PostsOptions::Authors,
+            "Browse Authors" => PostsOptions::Authors,
             "Home" => PostsOptions::Home,
             _ => panic!("This isn't an option!"),
         }

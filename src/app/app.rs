@@ -1,8 +1,9 @@
 use crate::feeds_and_entry::feeds_and_entry::Entry;
-use crate::session_and_user::session_and_user::Session;
+use crate::session_and_user::session_and_user::{Session, User};
 use crate::ui::screens::{FeedsOptions, HomeScreenOptions, Options, PostsOptions, SelectedScreen};
 use crate::ui::{primitives::StatefulList, screens::ProceduresOptions};
-use crossterm::event::{self, Event, KeyCode};
+use anyhow::Result;
+use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use futures::executor::block_on;
 use open;
 use std::{
@@ -10,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tui::layout::{Alignment, Constraint, Direction};
+use tui::style::Color;
 use tui::widgets::{Paragraph, Wrap};
 use tui::{
     backend::Backend,
@@ -20,29 +22,85 @@ use tui::{
     Frame, Terminal,
 };
 
+#[derive(Clone, Debug)]
+enum InputMode {
+    Normal,
+    Editing,
+}
+
+#[derive(Clone, Debug)]
+pub struct QuestionWithResponse {
+    question: String,
+    response: Option<String>,
+}
+
+impl QuestionWithResponse {
+    pub fn new(question: String) -> QuestionWithResponse {
+        QuestionWithResponse {
+            question,
+            response: None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct App {
     scroll: u16,
     pub session: Option<Session>,
-    // pub user: Option<User>,
     pub selected_screen: SelectedScreen,
     pub previous_screen: SelectedScreen,
     pub items: StatefulList<String>,
     pub show_popup: bool,
     pub should_open_link: bool,
+    input: String,
+    input_mode: InputMode,
+    messages: Vec<String>,
+    current_form_questions: Option<Vec<QuestionWithResponse>>,
 }
 
+/// Pass the app no session to initiate at the create session screen.
 impl App {
     pub fn new(session: Option<Session>) -> App {
-        App {
-            scroll: 0,
-            session,
-            // user,
-            selected_screen: SelectedScreen::Home,
-            previous_screen: SelectedScreen::Home,
-            items: SelectedScreen::Home.get_list_items(),
-            show_popup: false,
-            should_open_link: false,
+        match session {
+            Some(x) => {
+                return App {
+                    scroll: 0,
+                    session: Some(x),
+                    selected_screen: SelectedScreen::Home,
+                    previous_screen: SelectedScreen::Home,
+                    items: SelectedScreen::Home.get_list_items(),
+                    show_popup: false,
+                    should_open_link: false,
+                    input: String::from(""),
+                    input_mode: InputMode::Normal,
+                    messages: vec![],
+                    current_form_questions: None,
+                };
+            }
+            None => {
+                return App {
+                    scroll: 0,
+                    session,
+                    selected_screen: SelectedScreen::CreateSession,
+                    previous_screen: SelectedScreen::CreateSession,
+                    items: SelectedScreen::CreateSession.get_list_items(),
+                    show_popup: false,
+                    should_open_link: false,
+                    input: String::from(""),
+                    input_mode: InputMode::Normal,
+                    messages: vec![],
+                    current_form_questions: Some(
+                        SelectedScreen::CreateSession
+                            .get_list_items()
+                            .items
+                            .iter()
+                            .map(|question| {
+                                return QuestionWithResponse::new(question.to_owned());
+                            })
+                            .collect(),
+                    ),
+                };
+            }
         }
     }
 
@@ -51,9 +109,46 @@ impl App {
         self.scroll %= 10;
     }
 
-    pub fn select_screen(&mut self, screen: SelectedScreen) {
+    fn save_current_buffer_to_selected_response(&mut self) {
+        match &mut self.current_form_questions {
+            None => {}
+            Some(questions) => {
+                questions[self.items.state.selected().unwrap()].response = Some(self.input.clone());
+                self.input = String::from("");
+            }
+        }
+    }
+
+    fn proceed_with_question_responses(&mut self) -> Result<()> {
+        match self.selected_screen {
+            SelectedScreen::CreateSession => {
+                self.session = Some(Session::new(
+                    User::new(
+                        self.current_form_questions.as_ref().unwrap()[0]
+                            .response
+                            .as_ref()
+                            .unwrap()
+                            .as_str(),
+                    ),
+                    vec![],
+                    self.current_form_questions.as_ref().unwrap()[1]
+                        .response
+                        .as_ref()
+                        .unwrap()
+                        .as_str(),
+                ));
+            }
+            _ => {}
+        }
+        self.current_form_questions = None;
+        Ok(())
+    }
+
+    /// Move the user to a different screen.
+    fn select_screen(&mut self, screen: SelectedScreen) {
         self.previous_screen = self.selected_screen.clone();
         self.selected_screen = screen;
+        // Populate the app's current items with the corresponding screen's values.
         self.items.items = match self.selected_screen {
             SelectedScreen::Home => HomeScreenOptions::as_vec_of_strings(),
             SelectedScreen::Posts => PostsOptions::as_vec_of_strings(),
@@ -61,147 +156,42 @@ impl App {
             SelectedScreen::BrowsePosts => {
                 self.session.as_ref().unwrap().get_all_blog_entry_titles()
             }
-            SelectedScreen::CreateSession => todo!(),
+            // SelectedScreen::CreateSession => SelectedScreen::CreateSession.get_list_items().items,
+            SelectedScreen::CreateSession => SelectedScreen::CreateSession.get_list_items().items,
             SelectedScreen::Feeds => FeedsOptions::as_vec_of_strings(),
             SelectedScreen::SelectSession => todo!(),
+            SelectedScreen::Authors => self.session.as_ref().unwrap().get_unique_authors(),
         };
+        // Move the cursor to the first available position.
         self.items.state.select(Some(0));
     }
 
-    pub fn go_to_previous_screen(&mut self) {
+    /// Move the user to the previously visited screen.
+    fn go_to_previous_screen(&mut self) {
+        // Todo: Make an undo tree rather than just having one previous screen.
         let target_screen = self.previous_screen.clone();
         self.previous_screen = self.selected_screen.clone();
         self.select_screen(target_screen);
     }
-
-    pub fn navigate<B: Backend>(
+    /// To be used in the main loop, allows user navigation.
+    /// Returns true if the user hasn't pressed q.
+    fn navigate<B: Backend>(
         &mut self,
         terminal: &mut Terminal<B>,
         timeout: std::time::Duration,
     ) -> bool {
-        match self.selected_screen {
-            SelectedScreen::BrowsePosts => {
-                terminal
-                    .draw(|f| {
-                        self.nav_list_for_blog_entries(
-                            f,
-                            self.selected_screen.get_screen_name().as_str(),
-                            self.session.clone().unwrap().get_all_blog_entries(),
-                        )
-                    })
-                    .unwrap();
-            }
-            _ => {
-                terminal
-                    .draw(|f| {
-                        self.nav_list_generic(f, self.selected_screen.get_screen_name().as_str())
-                    })
-                    .unwrap();
-            }
-        };
-
-        let mut resp = true;
+        self.handle_screen_selection(terminal);
         if crossterm::event::poll(timeout).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
-                match key.code {
-                    KeyCode::Left => {
-                        self.go_to_previous_screen();
-                    }
-                    KeyCode::Char('q') => resp = false,
-                    KeyCode::Char('j') => {
-                        self.items.next();
-                    }
-                    KeyCode::Char('k') => {
-                        self.items.previous();
-                    }
-                    KeyCode::Char('b') => {
-                        self.go_to_previous_screen();
-                    }
-                    KeyCode::Char('p') => self.show_popup = !self.show_popup,
-                    KeyCode::Down => {
-                        self.items.next();
-                    }
-                    KeyCode::Up => {
-                        self.items.previous();
-                    }
-                    KeyCode::Enter => {
-                        let label = self.items.items[self.items.state.selected().unwrap()].as_str();
-                        match self.selected_screen {
-                            SelectedScreen::Home => {
-                                match HomeScreenOptions::from_string(label) {
-                                    HomeScreenOptions::ViewPosts => {
-                                        self.select_screen(SelectedScreen::Posts);
-                                    }
-                                    HomeScreenOptions::CreateSession => {
-                                        self.select_screen(SelectedScreen::CreateSession)
-                                    }
-                                    HomeScreenOptions::ChangeSession => {
-                                        self.select_screen(SelectedScreen::SelectSession)
-                                    }
-                                    HomeScreenOptions::AddRemoveSources => {
-                                        self.select_screen(SelectedScreen::Feeds)
-                                    }
-                                    HomeScreenOptions::Procedures => {
-                                        self.select_screen(SelectedScreen::Procedures)
-                                    }
-                                };
-                            }
-                            SelectedScreen::Posts => {
-                                match PostsOptions::from_string(label) {
-                                    PostsOptions::Home => self.select_screen(SelectedScreen::Home),
-                                    PostsOptions::Browse => {
-                                        self.select_screen(SelectedScreen::BrowsePosts)
-                                    }
-                                    PostsOptions::Search => {
-                                        todo!("will be a self.run_procedure or something instead of select_screen")
-                                    }
-                                    PostsOptions::Authors => {
-                                        todo!("screen with content");
-                                    }
-                                    PostsOptions::Categories => {
-                                        todo!("screen with content");
-                                    }
-                                };
-                            }
-                            SelectedScreen::Feeds => match FeedsOptions::from_string(label) {
-                                FeedsOptions::ViewFeeds => {
-                                    todo!("screen with editable content");
-                                }
-                                FeedsOptions::AddFeed => {
-                                    todo!("procedure");
-                                }
-                                FeedsOptions::Home => self.select_screen(SelectedScreen::Home),
-                            },
-                            SelectedScreen::CreateSession => {
-                                todo!("procedure")
-                            }
-                            SelectedScreen::SelectSession => {
-                                todo!("procedure")
-                            }
-                            SelectedScreen::Procedures => {
-                                match ProceduresOptions::from_string(label) {
-                                    ProceduresOptions::Home => {
-                                        self.select_screen(SelectedScreen::Home);
-                                    }
-                                    ProceduresOptions::AddSource => todo!(),
-                                    ProceduresOptions::DumpSessionData => {
-                                        self.session.as_ref().unwrap().dump_to_json()
-                                    }
-                                    ProceduresOptions::UpdatePosts => block_on(
-                                        self.session.to_owned().unwrap().fetch_all_blog_entries(),
-                                    ),
-                                };
-                            }
-                            SelectedScreen::BrowsePosts => self.should_open_link = true,
-                        }
-                    }
-                    _ => return resp,
-                }
-            }
+                return self.handle_keyboard_input(key);
+            } else {
+                return true;
+            };
         }
-        resp
+        return true;
     }
 
+    /// The main loop
     pub fn run<B: Backend>(
         &mut self,
         terminal: &mut Terminal<B>,
@@ -231,7 +221,168 @@ impl App {
         }
     }
 
-    pub fn nav_list_generic<B: Backend>(&mut self, f: &mut Frame<B>, title: &str) {
+    /// Utility function for calling the appropriate ui screen type
+    fn handle_screen_selection<B: Backend>(&mut self, terminal: &mut Terminal<B>) {
+        match self.selected_screen {
+            SelectedScreen::CreateSession => {
+                terminal
+                    .draw(|f| {
+                        self.user_input_flow(f, self.selected_screen.get_screen_name().as_str())
+                    })
+                    .unwrap();
+            }
+            SelectedScreen::BrowsePosts => {
+                terminal
+                    .draw(|f| {
+                        self.nav_list_for_blog_entries(
+                            f,
+                            self.selected_screen.get_screen_name().as_str(),
+                            self.session.clone().unwrap().get_all_blog_entries(),
+                        )
+                    })
+                    .unwrap();
+            }
+            _ => {
+                terminal
+                    .draw(|f| {
+                        self.nav_list_generic(f, self.selected_screen.get_screen_name().as_str())
+                    })
+                    .unwrap();
+            }
+        };
+    }
+
+    fn handle_keyboard_input(&mut self, key: KeyEvent) -> bool {
+        let mut resp = true;
+        match self.input_mode {
+            InputMode::Editing => match key.code {
+                KeyCode::Enter => {
+                    self.messages.push(self.input.drain(..).collect());
+                    match self.selected_screen {
+                        SelectedScreen::CreateSession => {
+                            self.save_current_buffer_to_selected_response();
+                        }
+                        _ => {}
+                    }
+                }
+                KeyCode::Char(c) => {
+                    self.input.push(c);
+                }
+                KeyCode::Backspace => {
+                    self.input.pop();
+                }
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.save_current_buffer_to_selected_response();
+                }
+                _ => {}
+            },
+            InputMode::Normal => match key.code {
+                KeyCode::Left => {
+                    self.go_to_previous_screen();
+                }
+                KeyCode::Char('q') => resp = false,
+                KeyCode::Char('j') => {
+                    self.items.next();
+                }
+                KeyCode::Char('k') => {
+                    self.items.previous();
+                }
+                KeyCode::Char('b') => {
+                    self.go_to_previous_screen();
+                }
+                KeyCode::Char('p') => self.show_popup = !self.show_popup,
+                KeyCode::Char('i') => {
+                    self.input_mode = InputMode::Editing;
+                }
+                KeyCode::Down => {
+                    self.items.next();
+                }
+                KeyCode::Up => {
+                    self.items.previous();
+                }
+                KeyCode::Enter => {
+                    let label = self.items.items[self.items.state.selected().unwrap()].as_str();
+                    match self.selected_screen {
+                        SelectedScreen::Authors => {}
+                        SelectedScreen::Home => {
+                            match HomeScreenOptions::from_string(label) {
+                                HomeScreenOptions::ViewPosts => {
+                                    self.select_screen(SelectedScreen::Posts);
+                                }
+                                HomeScreenOptions::CreateSession => {
+                                    self.select_screen(SelectedScreen::CreateSession)
+                                }
+                                HomeScreenOptions::ChangeSession => {
+                                    self.select_screen(SelectedScreen::SelectSession)
+                                }
+                                HomeScreenOptions::AddRemoveSources => {
+                                    self.select_screen(SelectedScreen::Feeds)
+                                }
+                                HomeScreenOptions::Procedures => {
+                                    self.select_screen(SelectedScreen::Procedures)
+                                }
+                            };
+                        }
+                        SelectedScreen::Posts => {
+                            match PostsOptions::from_string(label) {
+                                PostsOptions::Home => self.select_screen(SelectedScreen::Home),
+                                PostsOptions::Browse => {
+                                    self.select_screen(SelectedScreen::BrowsePosts)
+                                }
+                                PostsOptions::Search => {
+                                    todo!("will be a self.run_procedure or something instead of select_screen")
+                                }
+                                PostsOptions::Authors => {
+                                    self.select_screen(SelectedScreen::Authors)
+                                }
+                                PostsOptions::Categories => {
+                                    todo!()
+                                }
+                            };
+                        }
+                        SelectedScreen::Feeds => match FeedsOptions::from_string(label) {
+                            FeedsOptions::ViewFeeds => {
+                                todo!("screen with editable content");
+                            }
+                            FeedsOptions::AddFeed => {
+                                todo!("procedure");
+                            }
+                            FeedsOptions::Home => self.select_screen(SelectedScreen::Home),
+                        },
+                        SelectedScreen::CreateSession => {
+                            match self.proceed_with_question_responses() {
+                                Ok(_) => self.select_screen(SelectedScreen::Home),
+                                Err(_) => panic!("creation failed"), //self.select_screen(SelectedScreen::CreateSession),
+                            }
+                        }
+                        SelectedScreen::SelectSession => {
+                            todo!("procedure")
+                        }
+                        SelectedScreen::Procedures => {
+                            match ProceduresOptions::from_string(label) {
+                                ProceduresOptions::Home => {
+                                    self.select_screen(SelectedScreen::Home);
+                                }
+                                ProceduresOptions::AddSource => todo!(),
+                                ProceduresOptions::DumpSessionData => {
+                                    self.session.as_ref().unwrap().dump_to_json()
+                                }
+                                ProceduresOptions::UpdatePosts => block_on(
+                                    self.session.to_owned().unwrap().fetch_all_blog_entries(),
+                                ),
+                            };
+                        }
+                        SelectedScreen::BrowsePosts => self.should_open_link = true,
+                    }
+                }
+                _ => {}
+            },
+        }
+        return resp;
+    }
+
+    fn nav_list_generic<B: Backend>(&mut self, f: &mut Frame<B>, title: &str) {
         let size = f.size();
 
         let block = Block::default();
@@ -257,7 +408,101 @@ impl App {
         f.render_stateful_widget(items, size, &mut self.items.state)
     }
 
-    pub fn nav_list_for_blog_entries<B: Backend>(
+    fn get_input_block(
+        &self,
+        title: String,
+        question: &QuestionWithResponse,
+        question_index: usize,
+    ) -> Paragraph {
+        let mut paragraph_text = format!(
+            "{}{}",
+            question.question,
+            question.response.as_ref().unwrap_or(&String::from(""))
+        );
+        if self.items.state.selected().unwrap() == question_index {
+            paragraph_text = format!("{}{}", paragraph_text, self.input);
+            Paragraph::new(paragraph_text)
+                .style(match self.input_mode {
+                    InputMode::Normal => Style::default().fg(Color::Magenta),
+                    InputMode::Editing => Style::default().fg(Color::Yellow),
+                })
+                .block(Block::default().borders(Borders::ALL).title(title))
+        } else {
+            Paragraph::new(paragraph_text)
+                .style(match self.input_mode {
+                    InputMode::Normal => Style::default(),
+                    InputMode::Editing => Style::default(),
+                })
+                .block(Block::default().borders(Borders::ALL).title(title))
+        }
+    }
+
+    fn user_input_flow<B: Backend>(&mut self, f: &mut Frame<B>, title: &str) {
+        let size = f.size();
+
+        let block = Block::default().title(title);
+
+        f.render_widget(block, size);
+
+        let questions_display_percentage =
+            if self.current_form_questions.as_ref().unwrap().len() * 10 < 50 {
+                self.current_form_questions.as_ref().unwrap().len() * 10
+            } else {
+                50
+            };
+
+        let items: Vec<Paragraph> = self
+            .current_form_questions
+            .as_ref()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(i, question)| self.get_input_block(format!("{:?}", i + 1), &question, i))
+            .collect();
+
+        let per_constraint = ((questions_display_percentage as f64 / 100.0)
+            / self.current_form_questions.as_ref().unwrap().len() as f64)
+            * 100.0;
+
+        assert!(
+            0.0 < per_constraint && per_constraint < 100.0,
+            "constraint percentage: {}",
+            per_constraint
+        );
+
+        let mut question_chunk_constraints: Vec<Constraint> = self
+            .current_form_questions
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|_| Constraint::Percentage(per_constraint.round() as u16))
+            .collect();
+
+        question_chunk_constraints.append(&mut vec![Constraint::Percentage(
+            100 - questions_display_percentage as u16,
+        )]);
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(question_chunk_constraints)
+            .split(f.size());
+
+        for (i, item) in items.iter().enumerate() {
+            f.render_widget(item.to_owned(), chunks[i])
+        }
+
+        f.render_widget(
+            Paragraph::new(format!(
+                "{:?}",
+                self.current_form_questions.as_ref().unwrap()
+            )),
+            chunks[chunks.len() - 1],
+        )
+    }
+
+    /// Initially made for the BrowsePosts page but could be repurposed for any page with
+    /// selectable items.
+    fn nav_list_for_blog_entries<B: Backend>(
         &mut self,
         f: &mut Frame<B>,
         title: &str,
