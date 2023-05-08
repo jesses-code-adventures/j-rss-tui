@@ -32,23 +32,37 @@ impl BlogFeed {
     pub fn populate_entries(&mut self, feed: &feed_rs::model::Feed)  -> Option<Vec<Entry>> {
         let mut entries: Vec<Entry> = vec![];
         for entry in feed.entries.iter() {
-            let markdown_title = &html2md::parse_html(entry.title.as_ref().unwrap().content.as_str());
+            // Deleted markdown conversion as i dont think it was doing anything
+            // Left the code for now as it could be retested
+            // I just wanted to remove the dependency ok
+
+            // let markdown_title = &html2md::parse_html(entry.title.as_ref().unwrap().content.as_str());
+            let markdown_title = &entry.title.as_ref().unwrap().content;
 
             let unprocessed_authors: Vec<Person> = entry.authors.to_owned();
             let mut html_authors: Vec<String> = vec![];
             for author in unprocessed_authors {
                 html_authors.push(author.name.to_string());
             }
-            let markdown_authors = &html2md::parse_html(html_authors.join(", ").as_str());
+            // let markdown_authors = &html2md::parse_html(html_authors.join(", ").as_str());
+            let markdown_authors = html_authors.join(", ");
 
-            let markdown_content = &html2md::parse_html(
-                entry
+            // let markdown_content = &html2md::parse_html(
+            //     entry
+            //     .content
+            //     .to_owned()
+            //     .unwrap_or(Content::default())
+            //     .body
+            //     .to_owned()
+            //     .unwrap_or(String::from("")).as_str());
+            //
+            let markdown_content = entry
                 .content
                 .to_owned()
                 .unwrap_or(Content::default())
                 .body
                 .to_owned()
-                .unwrap_or(String::from("")).as_str());
+                .unwrap_or(String::from(""));
 
             let unprocessed_url: String = entry.links.to_owned()[0].to_owned().href;
 
@@ -101,6 +115,7 @@ impl BlogFeed {
         let default_entries: Vec<Entry> = vec![];
         let mut blurbs: Vec<String> = vec![];
         self.entries.as_ref().unwrap_or(&default_entries).iter().map(|entry| {
+            println!("{:?}", entry);
             match &entry.content {
                 Some(x) => blurbs.push(x.to_string()),
                 None => {

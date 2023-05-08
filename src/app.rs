@@ -5,7 +5,6 @@ use crate::ui::{primitives::StatefulList, screens::ProceduresOptions};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use futures::executor::block_on;
-use open;
 use std::{
     io,
     time::{Duration, Instant},

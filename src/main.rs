@@ -15,7 +15,7 @@ mod session_and_user;
 mod feeds_and_entry;
 mod ui;
 mod app;
-use app::app::App;
+use app::App;
 use crate::session_and_user::session::Session;
 
 #[tokio::main]
