@@ -1,1 +1,2 @@
-pub mod feeds_and_entry;
+pub mod entry;
+pub mod feeds;

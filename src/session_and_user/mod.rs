@@ -1,1 +1,2 @@
-pub mod session_and_user;
+pub mod session;
+pub mod user;

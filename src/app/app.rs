@@ -1,5 +1,5 @@
-use crate::feeds_and_entry::feeds_and_entry::Entry;
-use crate::session_and_user::session_and_user::{Session, User};
+use crate::feeds_and_entry::entry::Entry;
+use crate::session_and_user::{session::Session, user::User};
 use crate::ui::screens::{FeedsOptions, HomeScreenOptions, Options, PostsOptions, SelectedScreen};
 use crate::ui::{primitives::StatefulList, screens::ProceduresOptions};
 use anyhow::Result;
@@ -257,13 +257,14 @@ impl App {
         match self.input_mode {
             InputMode::Editing => match key.code {
                 KeyCode::Enter => {
-                    self.messages.push(self.input.drain(..).collect());
                     match self.selected_screen {
                         SelectedScreen::CreateSession => {
                             self.save_current_buffer_to_selected_response();
                         }
                         _ => {}
                     }
+                    self.messages.push(self.input.drain(..).collect());
+                    self.input_mode = InputMode::Normal;
                 }
                 KeyCode::Char(c) => {
                     self.input.push(c);

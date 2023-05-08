@@ -1,22 +1,10 @@
-use crate::feeds_and_entry::feeds_and_entry::{BlogFeed, Entry};
+use crate::feeds_and_entry::entry::Entry;
+use crate::feeds_and_entry::feeds::BlogFeed;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fmt;
 use anyhow::Result;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct User {
-    name: String,
-}
-
-#[allow(unused)]
-impl User {
-    pub fn new(name: &str) -> User {
-        User {
-            name: String::from(name),
-        }
-    }
-}
+use crate::session_and_user::user::User;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Session {
@@ -48,14 +36,14 @@ impl Session {
         let the_json = self.to_json();
 
         std::fs::write(
-            ".session.json",
+            ".sessions.json",
             serde_json::to_string_pretty(&the_json).unwrap(),
         )
         .unwrap();
     }
 
     pub fn load_from_json() -> Result<Session> {
-        let text = std::fs::read_to_string(".session.json")?;
+        let text = std::fs::read_to_string(".sessions.json")?;
         let the_json =serde_json::from_str::<Session>(&text)?;
         Ok(the_json)
     }
