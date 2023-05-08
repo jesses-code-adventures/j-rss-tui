@@ -39,12 +39,12 @@ impl Entry {
     }
     pub fn get_feed_content(&self) -> String {
         match &self.content {
-            Some(x) => return x.to_string(),
+            Some(x) => x.to_string(),
             None => {
-                if self.blurb.len() > 0 {
-                    return self.blurb.to_string();
+                if !self.blurb.is_empty() {
+                    self.blurb.to_string()
                 } else {
-                    return self.title.to_string();
+                    self.title.to_string()
                 }
             }
         }

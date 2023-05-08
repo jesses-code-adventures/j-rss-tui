@@ -67,7 +67,7 @@ impl Session {
             let mut these_entries = feed.entries.clone().unwrap();
             all_entries.append(&mut these_entries)
         }
-        return all_entries;
+        all_entries
     }
 
     pub fn get_all_blog_entry_titles(&self) -> Vec<String> {

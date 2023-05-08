@@ -119,7 +119,7 @@ impl BlogFeed {
             match &entry.content {
                 Some(x) => blurbs.push(x.to_string()),
                 None => {
-                    if entry.blurb.len() > 0 {
+                    if !entry.blurb.is_empty() {
                         blurbs.push(entry.blurb.to_string())
                     } else {
                         blurbs.push(entry.title.to_string())

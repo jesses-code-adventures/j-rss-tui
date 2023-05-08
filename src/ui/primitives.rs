@@ -48,6 +48,6 @@ impl<T> StatefulList<T> {
     }
 
     pub fn get_item(&self, index: usize) -> &T {
-        return &self.items[index];
+        &self.items[index]
     }
 }

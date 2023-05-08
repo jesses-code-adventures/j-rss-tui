@@ -62,7 +62,7 @@ impl App {
     pub fn new(session: Option<Session>) -> App {
         match session {
             Some(x) => {
-                return App {
+                App {
                     scroll: 0,
                     session: Some(x),
                     selected_screen: SelectedScreen::Home,
@@ -74,7 +74,7 @@ impl App {
                     input_mode: InputMode::Normal,
                     messages: vec![],
                     current_form_questions: None,
-                };
+                }
             }
             None => {
                 return App {
@@ -94,7 +94,7 @@ impl App {
                             .items
                             .iter()
                             .map(|question| {
-                                return QuestionWithResponse::new(question.to_owned());
+                                QuestionWithResponse::new(question.to_owned())
                             })
                             .collect(),
                     ),
@@ -187,7 +187,7 @@ impl App {
                 return true;
             };
         }
-        return true;
+        true
     }
 
     /// The main loop
@@ -379,7 +379,7 @@ impl App {
                 _ => {}
             },
         }
-        return resp;
+        resp
     }
 
     fn nav_list_generic<B: Backend>(&mut self, f: &mut Frame<B>, title: &str) {
@@ -457,7 +457,7 @@ impl App {
             .unwrap()
             .iter()
             .enumerate()
-            .map(|(i, question)| self.get_input_block(format!("{:?}", i + 1), &question, i))
+            .map(|(i, question)| self.get_input_block(format!("{:?}", i + 1), question, i))
             .collect();
 
         let per_constraint = ((questions_display_percentage as f64 / 100.0)
